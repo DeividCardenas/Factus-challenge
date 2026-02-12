@@ -13,10 +13,12 @@ app = FastAPI(
     debug=settings.DEBUG
 )
 
-# CICLO DE VIDA: Inicializar BD al arrancar
+# --- EVENTO DE INICIO ---
 @app.on_event("startup")
 async def on_startup():
+    # Esto crea las tablas en Postgres si no existen
     await init_db()
+    print("🚀 Base de Datos PostgreSQL conectada y tablas creadas.")
 
 # 2. Conectar Router de GraphQL
 graphql_app = GraphQLRouter(schema)
