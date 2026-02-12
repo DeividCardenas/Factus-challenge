@@ -14,8 +14,21 @@ async def subir_documento(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
         
     try:
-        resultado_json = await procesar_archivo_subido(temp_filename)
-        return {"mensaje": "Procesado con éxito", "total_facturas": len(resultado_json), "datos": resultado_json}
+        resultado = await procesar_archivo_subido(temp_filename)
+
+        errores = resultado["errores"]
+        validas = resultado["validas"]
+        unique_rejected = len({e["id_factura"] for e in errores})
+
+        return {
+            "resumen": {
+                "total_facturas": len(validas) + unique_rejected,
+                "validas": len(validas),
+                "rechazadas": unique_rejected
+            },
+            "errores": errores,
+            "procesadas": validas
+        }
     except Exception as e:
         return {"error": str(e)}
     finally:
@@ -37,10 +50,14 @@ async def emitir_facturas_masivas(file: UploadFile = File(...)):
         
     try:
         # 2. Transformar con Polars (Super Rápido)
-        lote_facturas = await procesar_archivo_subido(temp_filename)
+        # resultado ahora es {"validas": [...], "errores": [...]}
+        resultado_proceso = await procesar_archivo_subido(temp_filename)
+
+        lote_facturas = resultado_proceso["validas"]
+        errores_validacion = resultado_proceso["errores"]
         
         # 3. Enviar a Factus en Paralelo (Concurrency)
-        # Creamos una lista de tareas (tasks)
+        # Solo enviamos las válidas
         tareas = []
         for factura in lote_facturas:
             # Programamos el envío, pero no lo ejecutamos todavía
@@ -48,23 +65,46 @@ async def emitir_facturas_masivas(file: UploadFile = File(...)):
             tareas.append(tarea)
             
         # ¡BOOM! Ejecutamos todas las peticiones al tiempo 🚀
-        # asyncio.gather espera a que todas terminen
-        resultados = await asyncio.gather(*tareas)
+        resultados_envio = []
+        if tareas:
+            resultados_envio = await asyncio.gather(*tareas)
         
         # 4. Compilar reporte
-        exitosas = [r for r in resultados if r["status"] in [200, 201]]
-        fallidas = [r for r in resultados if r["status"] not in [200, 201]]
+        exitosas = [r for r in resultados_envio if r["status"] in [200, 201]]
+        fallidas_envio = [r for r in resultados_envio if r["status"] not in [200, 201]]
+
+        # Métricas
+        unique_rejected_validation = len({e["id_factura"] for e in errores_validacion})
+        total_validas_transform = len(lote_facturas)
+        total_enviadas_exito = len(exitosas)
+        total_fallidas_envio = len(fallidas_envio)
+
+        total_facturas = total_validas_transform + unique_rejected_validation
+
+        # Unificar lista de errores
+        # Agregamos una marca de origen al error si es de envío
+        errores_envio_formateados = []
+        for f in fallidas_envio:
+            errores_envio_formateados.append({
+                "origen": "API Factus",
+                "detalle": f
+            })
+
+        lista_errores_completa = errores_validacion + errores_envio_formateados
 
         return {
             "resumen": {
-                "total_procesadas": len(lote_facturas),
-                "enviadas_exito": len(exitosas),
-                "fallidas": len(fallidas)
+                "total_facturas": total_facturas,
+                "validas": total_enviadas_exito,
+                "rechazadas": unique_rejected_validation + total_fallidas_envio
             },
-            "detalle_errores": fallidas # Para que sepas qué corregir
+            "errores": lista_errores_completa,
+            "procesadas": exitosas
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"error_critico": str(e)}
         
     finally:
