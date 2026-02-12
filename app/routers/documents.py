@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.transformer import procesar_archivo_subido, factus_client
 from app.database import get_session

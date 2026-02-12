@@ -1,5 +1,4 @@
 import polars as pl
-import fastexcel
 from app.services.api_client import factus_client
 
 
@@ -34,9 +33,9 @@ async def procesar_archivo_subido(file_path: str):
 
     # Casting inicial necesario para validaciones y procesamiento
     lf = lf.with_columns([
-        pl.col("id_factura").cast(pl.String),
-        pl.col("precio_unitario").cast(pl.Float64),
-        pl.col("cantidad").cast(pl.Int64)
+        pl.col("id_factura").cast(pl.String, strict=False),
+        pl.col("precio_unitario").cast(pl.Float64, strict=False),
+        pl.col("cantidad").cast(pl.Int64, strict=False)
     ])
 
     # --- VALIDACIÓN DE CALIDAD DE DATOS ---
@@ -63,14 +62,14 @@ async def procesar_archivo_subido(file_path: str):
         pl.col("is_valid_row").all().over("id_factura").alias("is_valid_invoice")
     )
 
-    # Materializar dataframes para separar flujos
-    df = lf_atomic.collect()
-
-    # Separar válidas e inválidas
-    valid_df = df.filter(pl.col("is_valid_invoice"))
-    error_df = df.filter(~pl.col("is_valid_invoice"))
+    # Separar válidas e inválidas (Lazy)
+    valid_lf = lf_atomic.filter(pl.col("is_valid_invoice"))
+    error_lf = lf_atomic.filter(~pl.col("is_valid_invoice"))
 
     # --- PROCESAMIENTO DE ERRORES ---
+    # Materializamos solo los errores para iterar y reportar
+    error_df = error_lf.collect()
+
     errores_list = []
     if not error_df.is_empty():
         # En caso de rechazo atómico, algunas filas pueden ser válidas técnicamente,
@@ -97,62 +96,63 @@ async def procesar_archivo_subido(file_path: str):
 
     # --- TRANSFORMACIÓN DE VÁLIDAS (Lógica original) ---
     validas_list = []
-    if not valid_df.is_empty():
-        # Volver a Lazy para transformaciones complejas y agrupación
-        q = (
-            valid_df.lazy()
-            # 2. CÁLCULOS
-            .with_columns([
-                (pl.col("precio_unitario") * pl.col("cantidad")).alias("total_linea"),
-                (pl.col("precio_unitario") * pl.col("cantidad") * (pl.col("iva_porcentaje") / 100)).alias("valor_impuesto")
-            ])
 
-            # 3. ESTRUCTURA ITEM
-            .with_columns(
-                pl.struct([
-                    pl.col("producto").alias("code_reference"),
-                    pl.col("producto").alias("name"),
-                    pl.col("cantidad").alias("quantity"),
-                    pl.col("precio_unitario").alias("price"),
-                    pl.col("iva_porcentaje").alias("tax_rate"),
-                    pl.lit("1").alias("discount_rate"),
+    q = (
+        valid_lf
+        # 2. CÁLCULOS
+        .with_columns([
+            (pl.col("precio_unitario") * pl.col("cantidad")).alias("total_linea"),
+            (pl.col("precio_unitario") * pl.col("cantidad") * (pl.col("iva_porcentaje") / 100)).alias("valor_impuesto")
+        ])
 
-                    pl.struct([
-                        pl.lit("1").alias("code"),
-                        pl.lit("IVA").alias("name"),
-                        pl.col("iva_porcentaje").alias("rate"),
-                        pl.col("valor_impuesto").alias("amount")
-                    ]).alias("taxes")
-
-                ]).alias("item_struct")
-            )
-
-            .group_by(["id_factura", "cliente_nombre", "cliente_email"])
-            .agg([
-                pl.col("item_struct").alias("items"),
-                pl.col("total_linea").sum().alias("total_bruto"),
-                pl.col("valor_impuesto").sum().alias("total_impuestos")
-            ])
-
-            # 4. ESTRUCTURA FINAL
-            .select([
-                pl.col("id_factura").alias("numbering_range_id"),
-                pl.col("id_factura").alias("reference_code"),
-                pl.lit("1").alias("payment_form"),
-                pl.lit("10").alias("payment_method_code"),
+        # 3. ESTRUCTURA ITEM
+        .with_columns(
+            pl.struct([
+                pl.col("producto").alias("code_reference"),
+                pl.col("producto").alias("name"),
+                pl.col("cantidad").alias("quantity"),
+                pl.col("precio_unitario").alias("price"),
+                pl.col("iva_porcentaje").alias("tax_rate"),
+                pl.lit("0").alias("discount_rate"),
 
                 pl.struct([
-                    pl.col("cliente_nombre").alias("names"),
-                    pl.col("cliente_email").alias("email"),
-                    pl.lit("1").alias("identification"),
-                    pl.lit("13").alias("identification_document_id"),
-                    pl.lit("2").alias("legal_organization_id")
-                ]).alias("customer"),
+                    pl.lit("1").alias("code"),
+                    pl.lit("IVA").alias("name"),
+                    pl.col("iva_porcentaje").alias("rate"),
+                    pl.col("valor_impuesto").alias("amount")
+                ]).alias("taxes")
 
-                pl.col("items")
-            ])
+            ]).alias("item_struct")
         )
-        validas_list = q.collect().to_dicts()
+
+        .group_by(["id_factura", "cliente_nombre", "cliente_email"])
+        .agg([
+            pl.col("item_struct").alias("items"),
+            pl.col("total_linea").sum().alias("total_bruto"),
+            pl.col("valor_impuesto").sum().alias("total_impuestos")
+        ])
+
+        # 4. ESTRUCTURA FINAL
+        .select([
+            pl.col("id_factura").alias("numbering_range_id"),
+            pl.col("id_factura").alias("reference_code"),
+            pl.lit("1").alias("payment_form"),
+            pl.lit("10").alias("payment_method_code"),
+            pl.col("total_bruto"),
+            pl.col("total_impuestos"),
+
+            pl.struct([
+                pl.col("cliente_nombre").alias("names"),
+                pl.col("cliente_email").alias("email"),
+                pl.lit("1").alias("identification"),
+                pl.lit("13").alias("identification_document_id"),
+                pl.lit("2").alias("legal_organization_id")
+            ]).alias("customer"),
+
+            pl.col("items")
+        ])
+    )
+    validas_list = q.collect().to_dicts()
 
     return {
         "validas": validas_list,
