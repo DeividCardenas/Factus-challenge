@@ -3,6 +3,7 @@ from strawberry.fastapi import GraphQLRouter
 from app.graphql.schema import schema
 from app.routers import documents
 from app.core.config import settings
+from app.database import init_db
 
 # 1. Inicializar App
 app = FastAPI(
@@ -11,6 +12,11 @@ app = FastAPI(
     description="API de Facturación LOCAL - Modo Simulación",
     debug=settings.DEBUG
 )
+
+# CICLO DE VIDA: Inicializar BD al arrancar
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
 
 # 2. Conectar Router de GraphQL
 graphql_app = GraphQLRouter(schema)
