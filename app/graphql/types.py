@@ -1,30 +1,24 @@
 import strawberry
 from typing import List, Optional
+from datetime import datetime
+from strawberry.scalars import JSON
 
 @strawberry.type
-class EstadoConexion:
-    codigo: int
-    mensaje: str
-    data: Optional[str]
-
-@strawberry.type
-class ItemFactura:
-    description: str
-    price: float
-    quantity: int
-    tax_rate: float
-    tax_amount: float
-    # Agrega aquí los nuevos campos si ya actualizaste (code_reference, etc)
-
-@strawberry.type
-class ClienteFactura:
-    names: str
-    email: str
-
-@strawberry.type
-class FacturaTransformada:
+class FacturaType:
+    id: int
     reference_code: str
-    customer: ClienteFactura
-    items: List[ItemFactura]
-    total_bruto: float
-    total_impuestos: float
+    cliente_email: str
+    total: float
+    estado: str
+    motivo_rechazo: Optional[str]
+    api_response: Optional[JSON]
+
+@strawberry.type
+class LoteType:
+    id: int
+    nombre_archivo: str
+    fecha_carga: datetime
+    total_registros: int
+    total_errores: int
+    estado: str
+    facturas: List[FacturaType]
