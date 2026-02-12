@@ -21,6 +21,12 @@ class Settings:
     FACTUS_URL: str = "http://localhost:5000"  # URL dummy para modo local
     FACTUS_TOKEN: str = "mock-token-local"     # Token dummy para modo local
     
+    # Configuración de Base de Datos
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://jules:jules@localhost/factus_db"
+    )
+
     # Configuración de la APP
     DEBUG: bool = True
     HOST: str = "127.0.0.1"
@@ -34,4 +40,5 @@ print("🚀 MODO LOCAL ACTIVADO")
 print(f"   ▶ Ambiente: {settings.APP_MODE}")
 print(f"   ▶ Debug: {settings.DEBUG}")
 print(f"   ▶ Servidor: http://{settings.HOST}:{settings.PORT}")
+print(f"   ▶ DB: {settings.DATABASE_URL}")
 print("---------------------------------------------------")
