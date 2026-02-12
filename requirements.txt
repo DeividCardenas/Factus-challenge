@@ -19,3 +19,4 @@ polars>=0.20.0
 # Environment & Utilities
 python-dotenv>=1.0.0
 python-multipart>=0.0.6
+celery[redis]>=5.3.0
