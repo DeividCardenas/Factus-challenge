@@ -1,6 +1,6 @@
 id_factura,cliente_nombre,cliente_email,producto,precio_unitario,cantidad,iva_porcentaje
 1001,Juan Pérez,juan.perez@example.com,Laptop Gamer X1,1200.00,1,19
-1002,María Rodríguez,m.rodriguez@empresa.net,Mouse Inalámbrico,25.50,3,19
+1002,María Rodríguez,m.rodriguezempresa.net,Mouse Inalámbrico,25.50,3,19
 1003,Consultores Tech SAS,compras@consultorestech.co,Monitor 27 pulgadas,350.00,2,19
 1004,Carlos Gómez,carlos.gomez@mail.com,Teclado Mecánico,-85.00,1,19
 1005,Ana Martínez,ana.martinez@diseno.com,Licencia Software Pro,600.00,1,19
