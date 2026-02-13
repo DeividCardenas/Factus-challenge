@@ -6,3 +6,6 @@ venv/
 *.csv
 temp_*
 *.sqlite
+
+# PostgreSQL data directory (carpeta de datos del contenedor)
+postgres_data/
