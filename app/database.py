@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import SQLModel, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -20,6 +20,28 @@ async def init_db():
     async with engine.begin() as conn:
         # Crea las tablas automáticamente al iniciar
         await conn.run_sync(SQLModel.metadata.create_all)
+
+    # Crear Superusuario por defecto
+    from app.models import User
+    from app.core.security import get_password_hash
+
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with async_session() as session:
+        query = select(User).where(User.email == "admin@factus.com")
+        result = await session.execute(query)
+        user = result.scalars().first()
+
+        if not user:
+            print("👤 Creando Superusuario: admin@factus.com")
+            superuser = User(
+                email="admin@factus.com",
+                hashed_password=get_password_hash("admin123"),
+                is_active=True
+            )
+            session.add(superuser)
+            await session.commit()
 
 async def get_session():
     async_session = sessionmaker(
