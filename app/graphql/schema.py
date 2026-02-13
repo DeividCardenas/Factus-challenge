@@ -25,8 +25,8 @@ class Query:
         session = info.context["db"]
         # Usamos selectinload para cargar facturas de forma eficiente (1 query extra)
         statement = select(Lote).order_by(Lote.fecha_carga.desc()).options(selectinload(Lote.facturas))
-        result = await session.exec(statement)
-        lotes = result.all()
+        result = await session.execute(statement)
+        lotes = result.scalars().all()
 
         # Mapeo manual para asegurar tipos
         mapped_lotes = []
@@ -59,8 +59,8 @@ class Query:
     async def detalle_lote(self, info: Info, id: strawberry.ID) -> Optional[LoteType]:
         session = info.context["db"]
         statement = select(Lote).where(Lote.id == int(id)).options(selectinload(Lote.facturas))
-        result = await session.exec(statement)
-        lote = result.first()
+        result = await session.execute(statement)
+        lote = result.scalars().first()
 
         if not lote:
             return None

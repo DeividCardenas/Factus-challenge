@@ -1,11 +1,31 @@
 id_factura,cliente_nombre,cliente_email,producto,precio_unitario,cantidad,iva_porcentaje
-1001,Juan Pérez,juan.perez@example.com,Laptop Gamer X1,1200.00,1,19
-1002,María Rodríguez,m.rodriguez@empresa.net,Mouse Inalámbrico,25.50,3,19
-1003,Consultores Tech SAS,compras@consultorestech.co,Monitor 27 pulgadas,350.00,2,19
-1004,Carlos Gómez,carlos.gomez@mail.com,Teclado Mecánico,-85.00,1,19
-1005,Ana Martínez,ana.martinez@diseno.com,Licencia Software Pro,600.00,1,19
-1006,Pedro Sánchez,pedro.sanchez@hogar.com,Impresora Multifuncional,180.00,1,19
-1007,Luisa Fernanda Díaz,luisa.diaz@startup.io,Disco Duro SSD 1TB,110.00,5,19
-1008,Global Supplies Ltda,contacto@globalsupplies.com,Silla Ergonómica,220.00,4,19
-1009,Jorge Torres,jtorres99@example.com,Auriculares con Micrófono,45.00,2,19
-1010,Elena Ruiz,elena.ruiz@freelance.net,Webcam HD,55.00,1,19
+1011,Sofía Vergara,sofia.v@arquitectura.co,Tablet Gráfica Pro,320.00,1,19
+1012,Inversiones del Sur SAS,compras@invsur.com,Servidor Rack 2U,2500.00,1,19
+1013,Miguel Ángel Castro,mcastro88@gmail.com,Cable HDMI 2.0 3m,12.50,10,19
+1014,Laura Espinoza,lespinoza@marketing.net,Monitor 24 pulgadas,180.00,3,19
+1015,Tecnología y Redes Ltda,admin@tecred.com.co,Switch Gigabit 24 puertos,145.00,2,19
+1016,Diego Fernández,diego.fer@hotmail.com,Memoria RAM 16GB DDR4,75.00,4,19
+1017,Paula Andrea Gómez,paula.gomez@arte.io,iPad Air,599.00,1,19
+1018,Constructora Alianza,logistica@calianza.com,Impresora Láser Monocromática,210.00,2,19
+1019,Roberto Nuñez,rnunez@consultoria.org,Docking Station USB-C,85.00,5,19
+1020,Carmen Villalobos,cvillalobos@example.com,Funda Laptop 15 pulgadas,20.00,1,19
+1021,Sistemas Integrales SA,gerencia@sis-integrales.com,Firewall Hardware,1100.00,1,19
+1022,Javier Méndez,javier.mendez@dev.co,Teclado Inalámbrico Compacto,45.00,1,19
+1023,Natalia Herrera,nherrera@salud.net,Soporte Monitor Doble,65.00,3,19
+1024,Distribuidora El Valle,ventas@distrivalle.com,Lector Código de Barras,35.00,6,19
+1025,Fernando Quintero,fernandoq@edu.co,Proyector Portátil,280.00,1,19
+1026,Carolina Silva,caro.silva@music.com,Tarjeta de Sonido Externa,95.00,1,19
+1027,Agencia Creativa 360,finanzas@creativa360.com,MacBook Pro 16,2400.00,2,19
+1028,Gabriel Morales,gmorales@freelance.org,Hub USB 3.0,15.00,2,19
+1029,Patricia Londoño,paty.londono@viajes.com,Cámara de Seguridad WiFi,40.00,4,19
+1030,Restaurante La Plaza,admin@laplaza.com.co,Punto de Venta (POS) Touch,450.00,1,19
+1031,Daniel Osorio,daniel.osorio@banco.com,Disco Duro Externo 2TB,80.00,10,19
+1032,Grupo Empresarial Omega,compras@grupoomega.com,Router Mesh WiFi 6,220.00,3,19
+1033,Isabel Torres,isa.torres@moda.com,Aro de Luz LED,30.00,1,19
+1034,Héctor Jiménez,hectorj@automotriz.com,Escáner Documental,310.00,1,19
+1035,Valeria Ríos,vrios@legal.com,Destructora de Papel,60.00,2,19
+1036,Soluciones TI Pasto,contacto@tipasto.com,Cable de Red Cat6 305m,90.00,5,19
+1037,Alejandro Buitrago,abuitrago@universidad.edu,Microfono Condensador USB,110.00,1,19
+1038,Mónica Pineda,monica.pineda@realestate.com,Estabilizador de Voltaje,25.00,8,19
+1039,Andrés Felipe Cordoba,afcordoba@gym.com,Smartwatch Deportivo,150.00,1,19
+1040,Logística Express SAS,proveedores@logexpress.com,Impresora de Etiquetas Térmica,130.00,3,19

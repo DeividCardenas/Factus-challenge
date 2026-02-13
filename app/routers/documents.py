@@ -1,24 +1,32 @@
 import asyncio
+import shutil
+import os
+from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.services.transformer import procesar_archivo_subido, factus_client
+from app.services.transformer import procesar_archivo_subido
 from app.database import get_session
 from app.models import Lote, Factura, User
 from app.core.deps import get_current_user
-import shutil
-import os
+from app.models import Lote
+from app.tasks import procesar_archivo_task
 
 # Creamos un "Router" (como una mini-app)
 router = APIRouter()
 
+# Asegurar que existe directorio temporal
+TEMP_DIR = Path("temp")
+TEMP_DIR.mkdir(exist_ok=True)
+
 @router.post("/procesar-documento")
 async def subir_documento(file: UploadFile = File(...)):
-    temp_filename = f"temp_{file.filename}"
+    temp_filename = TEMP_DIR / f"temp_{file.filename}"
     with open(temp_filename, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
     try:
-        resultado = await procesar_archivo_subido(temp_filename)
+        # Convertimos a string porque polars/pandas esperan str path usualmente
+        resultado = await procesar_archivo_subido(str(temp_filename))
 
         errores = resultado["errores"]
         validas = resultado["validas"]
@@ -36,7 +44,7 @@ async def subir_documento(file: UploadFile = File(...)):
     except Exception as e:
         return {"error": str(e)}
     finally:
-        if os.path.exists(temp_filename):
+        if temp_filename.exists():
             os.remove(temp_filename)
 
 
@@ -47,141 +55,42 @@ async def emitir_facturas_masivas(
     current_user: User = Depends(get_current_user) # Protección: Solo usuarios autenticados
 ):
     """
-    Pipeline Completo CON PERSISTENCIA:
-    1. Registrar Lote (PROCESANDO)
-    2. Polars Transform
-    3. Guardar Rechazados
-    4. Async Parallel Sending
-    5. Guardar Resultados API
-    6. Cerrar Lote (COMPLETADO)
+    Pipeline Asíncrono con Celery:
+    1. Guardar archivo en disco
+    2. Crear registro Lote en BD (PENDIENTE)
+    3. Enviar tarea a Celery (procesamiento en background)
+    4. Retornar ID de lote y task_id inmediatamente
     """
-    temp_filename = f"temp_{file.filename}"
-    
     # 1. Guardar archivo temporal
+    # Usamos resolve() para obtener ruta absoluta y evitar problemas en el worker
+    # aunque si comparten FS relativo podria valer, absoluto es mas seguro.
+    temp_filename = TEMP_DIR / f"lote_{file.filename}"
+
     with open(temp_filename, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    nuevo_lote = None
     try:
-        # --- PASO 1: REGISTRAR LOTE ---
+        # 2. Registrar Lote (PENDIENTE)
         nuevo_lote = Lote(
             nombre_archivo=file.filename,
-            estado="PROCESANDO"
+            estado="PENDIENTE"
         )
         session.add(nuevo_lote)
         await session.commit()
         await session.refresh(nuevo_lote)
 
-        # --- PASO 2: TRANSFORMAR (Polars) ---
-        resultado_proceso = await procesar_archivo_subido(temp_filename)
-        lote_facturas = resultado_proceso["validas"]
-        errores_validacion = resultado_proceso["errores"]
+        # 3. Llamar a procesar_archivo_task.delay
+        task = procesar_archivo_task.delay(nuevo_lote.id, str(temp_filename.resolve()))
 
-        # Actualizar total registros
-        unique_rejected_ids = {e["id_factura"] for e in errores_validacion}
-        total_docs = len(lote_facturas) + len(unique_rejected_ids)
-        nuevo_lote.total_registros = total_docs
-        session.add(nuevo_lote)
-
-        # --- PASO 3: GUARDAR RECHAZADOS (Bulk Insert) ---
-        facturas_rechazadas_db = []
-        rechazados_map = {}
-        for err in errores_validacion:
-            fid = err["id_factura"]
-            if fid not in rechazados_map:
-                rechazados_map[fid] = err
-
-        for fid, err_data in rechazados_map.items():
-            raw = err_data.get("datos_raw", {})
-            # Extraer total si posible
-            total_calc = 0.0
-            try:
-                p = float(raw.get("precio_unitario", 0))
-                q = float(raw.get("cantidad", 0))
-                total_calc = p * q
-            except:
-                pass
-
-            email = raw.get("cliente_email", "desconocido@error.com")
-
-            facturas_rechazadas_db.append(Factura(
-                lote_id=nuevo_lote.id,
-                reference_code=fid,
-                cliente_email=email,
-                total=total_calc,
-                estado="RECHAZADA",
-                motivo_rechazo=err_data["motivo"],
-                api_response=None
-            ))
-
-        if facturas_rechazadas_db:
-            session.add_all(facturas_rechazadas_db)
-            await session.commit() # Guardamos rechazados
-
-        # --- PASO 4: ENVIAR A API (Async) ---
-        tareas = []
-        for factura in lote_facturas:
-            tarea = factus_client.enviar_factura(factura)
-            tareas.append(tarea)
-            
-        resultados_envio = []
-        if tareas:
-            resultados_envio = await asyncio.gather(*tareas)
-        
-        # --- PASO 5: GUARDAR RESULTADOS API ---
-        facturas_procesadas_db = []
-
-        # zip para correlacionar solicitud con respuesta
-        for factura_data, resp in zip(lote_facturas, resultados_envio):
-            es_exito = resp["status"] in [200, 201]
-            estado_final = "ENVIADA" if es_exito else "ERROR_API"
-
-            ref = str(factura_data.get("numbering_range_id"))
-            # Extraer email y total del dict transformado (ver transformer.py)
-            # transformer.py devuelve customer -> email, y total_bruto
-            cust = factura_data.get("customer", {})
-            email = cust.get("email", "")
-            total = factura_data.get("total_bruto", 0.0)
-
-            motivo = None
-            if not es_exito:
-                motivo = f"API Error: {resp.get('status')}"
-
-            facturas_procesadas_db.append(Factura(
-                lote_id=nuevo_lote.id,
-                reference_code=ref,
-                cliente_email=email,
-                total=total,
-                estado=estado_final,
-                motivo_rechazo=motivo,
-                api_response=resp # JSONB
-            ))
-
-        if facturas_procesadas_db:
-            session.add_all(facturas_procesadas_db)
-
-        # --- PASO 6: CERRAR LOTE ---
-        nuevo_lote.estado = "COMPLETADO"
-        session.add(nuevo_lote)
-
-        await session.commit()
-
-        # Retorno simple como pide el requerimiento
-        return {"lote_id": nuevo_lote.id, "mensaje": "Procesamiento finalizado"}
+        # 4. Retornar inmediatamente
+        return {
+            "mensaje": "Procesamiento iniciado",
+            "lote_id": nuevo_lote.id,
+            "task_id": task.id
+        }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        # Si falla algo crítico, marcamos lote como ERROR
-        if nuevo_lote:
-            try:
-                nuevo_lote.estado = "ERROR"
-                session.add(nuevo_lote)
-                await session.commit()
-            except:
-                pass
-        return {"error_critico": str(e)}
-        
-    finally:
-        if os.path.exists(temp_filename):
+        # Si falla antes de encolar, limpiamos
+        if temp_filename.exists():
             os.remove(temp_filename)
+        return {"error": str(e)}

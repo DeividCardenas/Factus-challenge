@@ -24,7 +24,7 @@ class Settings:
     # Configuración de Base de Datos
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://jules:jules@localhost/factus_db"
+        "postgresql+asyncpg://factus_user:factus_password@localhost:5432/factus_db"
     )
 
     # Configuración de la APP
