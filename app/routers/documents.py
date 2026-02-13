@@ -3,7 +3,8 @@ from fastapi import APIRouter, UploadFile, File, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.transformer import procesar_archivo_subido, factus_client
 from app.database import get_session
-from app.models import Lote, Factura
+from app.models import Lote, Factura, User
+from app.core.deps import get_current_user
 import shutil
 import os
 
@@ -42,7 +43,8 @@ async def subir_documento(file: UploadFile = File(...)):
 @router.post("/emitir-facturas-masivas")
 async def emitir_facturas_masivas(
     file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session) # Inyectamos sesión de BD
+    session: AsyncSession = Depends(get_session), # Inyectamos sesión de BD
+    current_user: User = Depends(get_current_user) # Protección: Solo usuarios autenticados
 ):
     """
     Pipeline Completo CON PERSISTENCIA:

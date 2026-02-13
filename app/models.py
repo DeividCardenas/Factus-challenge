@@ -2,7 +2,13 @@ from typing import Optional, List, Dict, Any
 from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime
 from sqlalchemy import Column
-from sqlalchemy.dialects.postgresql import JSONB # <--- Importante para Postgres
+from sqlalchemy.dialects.postgresql import JSONB
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)
+    hashed_password: str
+    is_active: bool = Field(default=True)
 
 class Lote(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
