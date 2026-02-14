@@ -1,90 +1,212 @@
+"""GraphQL Schema - Unificación de tipos, queries, mutations"""
+
 import strawberry
-from typing import List, Optional
+from typing import Optional
 from strawberry.types import Info
-from sqlmodel import select
-from sqlalchemy.orm import selectinload
 
-from app.models import Lote, Factura
+# Importar todos los tipos
+from app.graphql.types import (
+    InvoiceType, InvoiceListType, LoteType, LoteListType,
+    LoteDetailType, LoteStatisticsType, UserType, AuthResponseType
+)
 
-# Importamos los tipos y definimos las clases Strawberry
-# PERO, el schema anterior tenía un bug circular o importación:
-# `LoteType` en `schema.py` referenciaba `FacturaType` y ambos deben ser accesibles.
-# Para simplificar y evitar problemas de scope, vamos a definirlos aquí o importar
-# y asegurar que la conversión sea correcta.
+# Importar inputs
+from app.graphql.inputs import (
+    InvoiceCreateInput, PaginationInput, LoteCreateInput, LoginInput
+)
 
-# En `app/graphql/types.py` definimos `FacturaType` y `LoteType`.
-# Sin embargo, `LoteType` necesita una lista de `FacturaType`.
-# Si importamos desde `types.py`, está bien.
+# Importar Service Layer
+from app.services.invoice_service import InvoiceService
+from app.services.lote_service import LoteService
+from app.services.auth_service import AuthService
 
-from app.graphql.types import LoteType, FacturaType
+# Importar Query existente
+from app.graphql.queries import Query
+
+
+# ============= MUTATIONS =============
 
 @strawberry.type
-class Query:
-    @strawberry.field
-    async def historial_lotes(self, info: Info) -> List[LoteType]:
-        session = info.context["db"]
-        # Usamos selectinload para cargar facturas de forma eficiente (1 query extra)
-        statement = select(Lote).order_by(Lote.fecha_carga.desc()).options(selectinload(Lote.facturas))
-        result = await session.execute(statement)
-        lotes = result.scalars().all()
-
-        # Mapeo manual para asegurar tipos
-        mapped_lotes = []
-        for l in lotes:
-            mapped_facturas = [
-                FacturaType(
-                    id=f.id,
-                    reference_code=f.reference_code,
-                    cliente_email=f.cliente_email,
-                    total=f.total,
-                    estado=f.estado,
-                    motivo_rechazo=f.motivo_rechazo,
-                    api_response=f.api_response
-                ) for f in l.facturas
-            ]
-            mapped_lotes.append(
-                LoteType(
-                    id=l.id,
-                    nombre_archivo=l.nombre_archivo,
-                    fecha_carga=l.fecha_carga,
-                    total_registros=l.total_registros,
-                    total_errores=l.total_errores,
-                    estado=l.estado,
-                    facturas=mapped_facturas
-                )
+class Mutation:
+    """Mutations GraphQL - Creación y modificación de datos"""
+    
+    @strawberry.mutation
+    async def create_invoice(
+        self,
+        info: Info,
+        invoice_input: InvoiceCreateInput
+    ) -> InvoiceType:
+        """
+        Crear una nueva factura via GraphQL.
+        
+        Args:
+            invoice_input: Datos de la factura
+            
+        Returns:
+            InvoiceType creado
+        """
+        session = info.context.get("session")
+        # Nota: En producción, deberías obtener current_user del contexto
+        current_user = info.context.get("user")
+        usuario_id = current_user.id if current_user else 1
+        
+        service = InvoiceService(session)
+        # Convertir input de GraphQL a schema Pydantic
+        from app.schemas.invoice import (
+            InvoiceCreate, ItemCreate, CustomerCreate
+        )
+        
+        items = [
+            ItemCreate(
+                code_reference=item.code_reference,
+                name=item.name,
+                quantity=item.quantity,
+                price=item.price,
+                tax_rate=item.tax_rate,
+                discount_rate=item.discount_rate
             )
-        return mapped_lotes
-
-    @strawberry.field
-    async def detalle_lote(self, info: Info, id: strawberry.ID) -> Optional[LoteType]:
-        session = info.context["db"]
-        statement = select(Lote).where(Lote.id == int(id)).options(selectinload(Lote.facturas))
-        result = await session.execute(statement)
-        lote = result.scalars().first()
-
-        if not lote:
-            return None
-
-        mapped_facturas = [
-            FacturaType(
-                id=f.id,
-                reference_code=f.reference_code,
-                cliente_email=f.cliente_email,
-                total=f.total,
-                estado=f.estado,
-                motivo_rechazo=f.motivo_rechazo,
-                api_response=f.api_response
-            ) for f in lote.facturas
+            for item in invoice_input.items
         ]
-
+        
+        customer = CustomerCreate(
+            names=invoice_input.customer.names,
+            email=invoice_input.customer.email,
+            phone=invoice_input.customer.phone,
+            identification=invoice_input.customer.identification,
+            identification_document_id=invoice_input.customer.identification_document_id,
+            legal_organization_id=invoice_input.customer.legal_organization_id
+        )
+        
+        factura_create = InvoiceCreate(
+            numbering_range_id=invoice_input.numbering_range_id,
+            reference_code=invoice_input.reference_code,
+            observation=invoice_input.observation,
+            payment_form=invoice_input.payment_form,
+            payment_method_code=invoice_input.payment_method_code,
+            customer=customer,
+            items=items
+        )
+        
+        result = await service.crear_factura(factura_create, usuario_id)
+        
+        return InvoiceType(
+            id=result.id,
+            numbering_range_id=result.numbering_range_id,
+            reference_code=result.reference_code,
+            observation=result.observation,
+            payment_form=result.payment_form,
+            payment_method_code=result.payment_method_code,
+            cliente_email=result.cliente_email,
+            cliente_nombre=result.cliente_nombre,
+            total=result.total,
+            estado=result.estado,
+            motivo_rechazo=result.motivo_rechazo,
+            api_response=result.api_response,
+            created_at=result.created_at,
+            updated_at=result.updated_at,
+            lote_id=result.lote_id,
+            usuario_id=result.usuario_id
+        )
+    
+    @strawberry.mutation
+    async def update_invoice_status(
+        self,
+        info: Info,
+        invoice_id: int,
+        nuevo_estado: str,
+        motivo: Optional[str] = None
+    ) -> InvoiceType:
+        """
+        Actualizar estado de una factura.
+        
+        Args:
+            invoice_id: ID de la factura
+            nuevo_estado: Nuevo estado
+            motivo: Motivo (si es rechazo)
+            
+        Returns:
+            InvoiceType actualizado
+        """
+        session = info.context.get("session")
+        service = InvoiceService(session)
+        
+        result = await service.actualizar_estado_factura(
+            invoice_id,
+            nuevo_estado,
+            motivo
+        )
+        
+        return InvoiceType(
+            id=result.id,
+            numbering_range_id=result.numbering_range_id,
+            reference_code=result.reference_code,
+            observation=result.observation,
+            payment_form=result.payment_form,
+            payment_method_code=result.payment_method_code,
+            cliente_email=result.cliente_email,
+            cliente_nombre=result.cliente_nombre,
+            total=result.total,
+            estado=result.estado,
+            motivo_rechazo=result.motivo_rechazo,
+            api_response=result.api_response,
+            created_at=result.created_at,
+            updated_at=result.updated_at,
+            lote_id=result.lote_id,
+            usuario_id=result.usuario_id
+        )
+    
+    @strawberry.mutation
+    async def create_lote(
+        self,
+        info: Info,
+        lote_input: LoteCreateInput
+    ) -> LoteType:
+        """
+        Crear un nuevo lote.
+        
+        Args:
+            lote_input: Datos del lote
+            
+        Returns:
+            LoteType creado
+        """
+        session = info.context.get("session")
+        current_user = info.context.get("user")
+        usuario_id = current_user.id if current_user else 1
+        
+        from app.schemas.lote import LoteCreate
+        
+        service = LoteService(session)
+        result = await service.crear_lote(
+            LoteCreate(
+                nombre_archivo=lote_input.nombre_archivo,
+                total_registros=lote_input.total_registros
+            ),
+            usuario_id
+        )
+        
         return LoteType(
-            id=lote.id,
-            nombre_archivo=lote.nombre_archivo,
-            fecha_carga=lote.fecha_carga,
-            total_registros=lote.total_registros,
-            total_errores=lote.total_errores,
-            estado=lote.estado,
-            facturas=mapped_facturas
+            id=result.id,
+            nombre_archivo=result.nombre_archivo,
+            fecha_carga=result.fecha_carga,
+            total_registros=result.total_registros,
+            registros_procesados=result.registros_procesados,
+            estado=result.estado,
+            usuario_id=result.usuario_id
         )
 
-schema = strawberry.Schema(query=Query)
+
+# ============= SCHEMA =============
+
+# Importar extensiones GraphQL
+from app.graphql.extensions import CustomErrorHandling, PerformanceMonitoring
+
+schema = strawberry.Schema(
+    query=Query,
+    mutation=Mutation,
+    extensions=[
+        CustomErrorHandling,
+        PerformanceMonitoring,
+    ]
+)
+

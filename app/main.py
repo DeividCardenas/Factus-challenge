@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from strawberry.fastapi import GraphQLRouter
 from app.graphql.schema import schema
 from app.routers import documents, auth, invoices
 from app.core.config import settings
 from app.database import init_db, get_session
 from sqlmodel.ext.asyncio.session import AsyncSession
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional, Dict, Any
+from app.api.errors.handlers import setup_exception_handlers
+from app.core.deps import get_current_user
+from app.models import User
 
 # 1. Inicializar App
 app = FastAPI(
@@ -15,33 +18,78 @@ app = FastAPI(
     debug=settings.DEBUG
 )
 
+# 2. Configurar exception handlers
+setup_exception_handlers(app)
+
 # --- EVENTO DE INICIO ---
 @app.on_event("startup")
 async def on_startup():
+    """Inicialización de la aplicación"""
     # Esto crea las tablas en Postgres si no existen y el usuario admin
     await init_db()
     print("🚀 Base de Datos PostgreSQL conectada y tablas creadas.")
+    print("✅ Exception handlers configurados")
+    print("📊 GraphQL habilitado en /graphql")
+    print("📚 REST API habilitado en /docs")
 
-# --- CONTEXT GETTER PARA GRAPHQL ---
-async def get_context(
-    db: AsyncSession = Depends(get_session)
-):
+
+# --- CONTEXT GETTER PARA GRAPHQL CON INYECCIÓN DE DEPENDENCIAS ---
+async def get_graphql_context(
+    request: Request,
+    db: AsyncSession = Depends(get_session),
+) -> Dict[str, Any]:
     """
-    Inyecta la sesión de DB en el contexto de GraphQL.
-    Strawberry automáticamente ejecuta esto y pasa el resultado a info.context.
+    Contexto para GraphQL con:
+    - Sesión de base de datos
+    - Usuario actual (si está autenticado)
+    - Request object
+    
+    GraphQL pasará esto a info.context en cada resolver.
     """
+    user: Optional[User] = None
+    
+    # Intentar obtener usuario del header Authorization
+    auth_header = request.headers.get("Authorization")
+    if auth_header:
+        try:
+            # Extraer token y validar
+            token = auth_header.replace("Bearer ", "")
+            user = await get_current_user(token, db)
+        except Exception:
+            # Si falla validación, continuar sin usuario
+            pass
+    
     return {
-        "db": db
+        "session": db,
+        "user": user,
+        "request": request
     }
 
-# 2. Conectar Router de GraphQL con Contexto
-graphql_app = GraphQLRouter(schema, context_getter=get_context)
+
+# 3. Conectar Router de GraphQL con Contexto Mejorado
+graphql_app = GraphQLRouter(
+    schema,
+    context_getter=get_graphql_context
+)
 app.include_router(graphql_app, prefix="/graphql")
 
-# 3. Conectar Routers REST
+# 4. Conectar Routers REST
 app.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
 app.include_router(documents.router, tags=["Documentos"])
 app.include_router(invoices.router, tags=["Facturas Individuales"])
+
+
+# --- HEALTH CHECK ---
+@app.get("/health")
+async def health_check():
+    """Verificar estado de la API"""
+    return {
+        "status": "healthy",
+        "graphql_endpoint": "/graphql",
+        "docs_endpoint": "/docs",
+        "graphql_docs_endpoint": "/graphql/schema"
+    }
+
 
 @app.get("/")
 def home():
