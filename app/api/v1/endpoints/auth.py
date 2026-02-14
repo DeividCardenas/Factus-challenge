@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.database import get_session
+from app.core.database import get_session
 from app.models import User
 from app.core.security import verify_password, create_access_token
 from app.api.errors.http_errors import UnauthorizedException, ValidationException

@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.celery_app import celery_app
-from app.database import DATABASE_URL
+from app.core.database import DATABASE_URL
 from app.models import Lote, Factura
 from app.services.transformer import procesar_archivo_subido
 from app.services.api_client import factus_client

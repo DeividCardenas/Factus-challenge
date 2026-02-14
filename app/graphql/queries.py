@@ -11,7 +11,7 @@ from app.graphql.types import (
 from app.graphql.inputs import PaginationInput
 from app.services.invoice_service import InvoiceService
 from app.services.lote_service import LoteService
-from app.database import get_session
+from app.core.database import get_session
 from app.core.deps import get_current_user
 from app.models import User
 

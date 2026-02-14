@@ -5,11 +5,11 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.transformer import procesar_archivo_subido
-from app.database import get_session
+from app.core.database import get_session
 from app.models import Lote, Factura, User
 from app.core.deps import get_current_user
 from app.models import Lote
-from app.tasks import procesar_archivo_task
+from app.services.tasks import procesar_archivo_task
 from app.repositories.factura_repository import FacturaRepository
 from app.repositories import LoteRepository
 from app.schemas import ProcessResult, BatchUploadResponse
