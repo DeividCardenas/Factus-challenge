@@ -1,24 +1,10 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
-from datetime import datetime
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import JSONB
 
-class User(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(unique=True, index=True)
-    hashed_password: str
-    is_active: bool = Field(default=True)
-
-class Lote(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    nombre_archivo: str = Field(index=True)
-    fecha_carga: datetime = Field(default_factory=datetime.utcnow)
-    total_registros: int = 0
-    total_errores: int = 0
-    estado: str = "PROCESADO" 
-    
-    facturas: List["Factura"] = Relationship(back_populates="lote")
+if TYPE_CHECKING:
+    from .lote import Lote
 
 class Factura(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -36,4 +22,4 @@ class Factura(SQLModel, table=True):
     api_response: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSONB))
     
     lote_id: Optional[int] = Field(default=None, foreign_key="lote.id")
-    lote: Optional[Lote] = Relationship(back_populates="facturas")
+    lote: Optional["Lote"] = Relationship(back_populates="facturas")

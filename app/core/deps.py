@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.database import get_session
+from app.core.database import get_session
 from app.models import User
 from app.core.security import SECRET_KEY, ALGORITHM
 from app.api.errors.http_errors import UnauthorizedException

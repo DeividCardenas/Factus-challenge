@@ -18,13 +18,16 @@ async def test_all():
     # Test 1: Error Handling
     print("1️⃣  Probando Error Handling System...")
     try:
-        from app.api.errors import (
+        from app.api.errors.http_errors import (
             APIException, NotFoundException, ValidationException,
-            UnauthorizedException, ForbiddenException, ConflictException,
+            UnauthorizedException, ConflictException,
             ExternalServiceException, RateLimitException
         )
         from app.api.errors.handlers import setup_exception_handlers
         print("   ✅ Error handling OK (7 exception classes + handlers)")
+    except ImportError as e:
+        print(f"   ❌ Error handling FAILED: {e}")
+        return False
     except Exception as e:
         print(f"   ❌ Error handling FAILED: {e}")
         return False
@@ -32,11 +35,10 @@ async def test_all():
     # Test 2: Schemas
     print("\n2️⃣  Probando DTOs/Schemas...")
     try:
-        from app.schemas import (
-            PaginationParams, Token, TokenData, LoginResponse,
-            ItemCreate, CustomerCreate, InvoiceCreate, InvoiceResponse,
-            LoteCreate, LoteResponse, ProcessResult, BatchUploadResponse
-        )
+        from app.schemas.auth import Token, TokenData, LoginResponse
+        from app.schemas.invoice import InvoiceCreate, InvoiceResponse, ItemCreate
+        from app.schemas.lote import LoteCreate, LoteResponse
+
         # Instanciar un schema válido con todos los campos requeridos
         item = ItemCreate(
             code_reference="ITEM-001",
@@ -45,7 +47,7 @@ async def test_all():
             price=99.99,
             tax_rate=19.0
         )
-        print("   ✅ Schemas OK (13 schema classes + validation)")
+        print("   ✅ Schemas OK (DTOs + validation)")
     except Exception as e:
         print(f"   ❌ Schemas FAILED: {e}")
         return False
@@ -68,7 +70,7 @@ async def test_all():
     # Test 4: Updated Routers
     print("\n4️⃣  Probando Routers Actualizados...")
     try:
-        from app.routers import auth, invoices, documents
+        from app.api.v1.endpoints import auth, invoices, documents
         print("   ✅ Routers OK")
         print("      - auth.py (con UserRepository + excepciones)")
         print("      - invoices.py (3 endpoints optimizados)")
@@ -91,7 +93,7 @@ async def test_all():
     # Test 6: Database & ORM
     print("\n6️⃣  Probando Componentes de Base de Datos...")
     try:
-        from app.database import engine, get_session
+        from app.core.database import get_session
         from sqlmodel.ext.asyncio.session import AsyncSession
         print("   ✅ Database OK")
         print("      - Engine configurado")
@@ -119,14 +121,16 @@ async def test_all():
     print("   3. Probar endpoints en Swagger")
     
     print("\n📚 Documentación:")
-    print("   • IMPLEMENTACION_COMPLETADA.md - Cambios en detalle")
-    print("   • VERIFICACION_FINAL.md - Guía de verificación")
-    print("   • ARQUITECTURA_PROPUESTA.md - Overview de arquitectura")
+    print("   • README.md - General")
+    print("   • docs/ARCHITECTURE.md - Overview de arquitectura")
+    print("   • docs/API_GUIDE.md - Guía de uso")
     print("\n")
     
     return True
 
 
 if __name__ == "__main__":
-    success = asyncio.run(test_all())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    success = loop.run_until_complete(test_all())
     exit(0 if success else 1)

@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.database import get_session
+from app.core.database import get_session
 from app.core.deps import get_current_user
 from app.models import User, Factura
 from app.services.api_client import factus_client

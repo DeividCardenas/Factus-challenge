@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Depends, Request
 from strawberry.fastapi import GraphQLRouter
 from app.graphql.schema import schema
-from app.routers import documents, auth, invoices
+from app.api.v1.router import api_router
 from app.core.config import settings
-from app.database import init_db, get_session
+from app.core.database import init_db, get_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import AsyncGenerator, Optional, Dict, Any
 from app.api.errors.handlers import setup_exception_handlers
@@ -74,9 +74,8 @@ graphql_app = GraphQLRouter(
 app.include_router(graphql_app, prefix="/graphql")
 
 # 4. Conectar Routers REST
-app.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
-app.include_router(documents.router, tags=["Documentos"])
-app.include_router(invoices.router, tags=["Facturas Individuales"])
+# Agregamos el router de la versión 1 con prefijo /api/v1
+app.include_router(api_router, prefix="/api/v1")
 
 
 # --- HEALTH CHECK ---
@@ -99,9 +98,9 @@ def home():
         "documentacion": "/docs",
         "endpoints": {
             "graphql": "/graphql",
-            "login": "POST /auth/login",
-            "procesar_documento": "POST /procesar-documento",
-            "emitir_masivas": "POST /emitir-facturas-masivas (Protegido)",
-            "emitir_individual": "POST /facturas (Protegido)"
+            "login": "POST /api/v1/auth/login",
+            "procesar_documento": "POST /api/v1/procesar-documento",
+            "emitir_masivas": "POST /api/v1/emitir-facturas-masivas (Protegido)",
+            "emitir_individual": "POST /api/v1/facturas (Protegido)"
         }
     }

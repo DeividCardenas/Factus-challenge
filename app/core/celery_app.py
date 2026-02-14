@@ -10,7 +10,7 @@ celery_app = Celery(
     "factus_worker",
     broker=broker_url,
     backend=result_backend,
-    include=["app.tasks"]
+    include=["app.services.tasks"]
 )
 
 celery_app.conf.update(
